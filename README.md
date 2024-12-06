@@ -12,7 +12,7 @@ Swoft Devtool Component
 - composer command
 
 ```bash
-composer require swoft/devtool
+composer require swoft-fork/devtool
 ```
 
 ## Resources
