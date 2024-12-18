@@ -45,20 +45,24 @@ class ConsoleHelper
             output()->writeln($message, false);
             $answer = input()->read();
 
+            // 如果输入为空，返回默认值
             if (empty($answer)) {
+                output()->writeln($defaultText);
                 return $default;
             }
 
-            if (0 === stripos($answer, 'y')) {
+            $answer = strtolower(trim($answer));
+            
+            if (in_array($answer, ['y', 'yes'], true)) {
                 return true;
             }
 
-            if (0 === stripos($answer, 'n')) {
+            if (in_array($answer, ['n', 'no'], true)) {
                 return false;
             }
-        }
 
-        return false;
+            output()->writeln("Invalid input. Please enter 'yes' or 'no'");
+        }
     }
 
     /**

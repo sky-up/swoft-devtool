@@ -572,8 +572,23 @@ class MigrateLogic
             }
         };
 
-        $schema->grammar->supportsSchemaTransactions() ? $schema->getConnection()->transaction($callback) : $callback();
-
+        //$schema->grammar->supportsSchemaTransactions() ? $schema->getConnection()->transaction($callback) : $callback();
+        $connection = $schema->getConnection();
+        try {
+            if ($schema->grammar->supportsSchemaTransactions()) {
+                $connection->beginTransaction();
+                $callback();
+                $connection->commit();
+            } else {
+                $callback();
+            }
+        } catch (\Exception $e) {
+            if ($connection->inTransaction()) {
+                $connection->rollBack();
+            }
+            output()->error("Migration failed: " . $e->getMessage());
+            return false;
+        }
         return true;
     }
 
