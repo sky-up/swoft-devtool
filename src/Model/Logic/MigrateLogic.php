@@ -562,34 +562,58 @@ class MigrateLogic
             $migration->setSchema($copySchema);
         }
 
-        $callback = function () use ($schema, $migration, $method): void {
+        $callback = function () use ($schema, $migration, $method, $migrateName): void {
             // Call up or down method
+            output()->info("Executing $method method for migration: $migrateName");
             $migration->{$method}();
+
             if (method_exists($migration, 'getWaitExecuteSql')) {
                 foreach ($migration->getWaitExecuteSql() as $statement) {
+                    output()->info("Executing additional SQL: $statement");
                     $schema->getConnection()->unprepared($statement);
                 }
             }
+
+            // 通用验证：如果 migration 实现了验证方法，则调用验证
+            if ($method === 'up' && method_exists($migration, 'validate')) {
+                output()->info("Running validation for migration: $migrateName");
+                $migration->validate($schema);
+            }
         };
 
-        //$schema->grammar->supportsSchemaTransactions() ? $schema->getConnection()->transaction($callback) : $callback();
         $connection = $schema->getConnection();
+        $wasInTransaction = false;
         try {
             if ($schema->grammar->supportsSchemaTransactions()) {
                 $connection->beginTransaction();
+                $wasInTransaction = true;
+                output()->info("Starting transaction for migration: $migrateName");
+
                 $callback();
-                $connection->commit();
+
+                // PHP 8 兼容性修复：检查事务是否仍然活跃
+                if ($connection->inTransaction()) {
+                    $connection->commit();
+                    output()->info("Transaction committed for migration: $migrateName");
+                } else {
+                    output()->warning("Transaction was auto-committed (DDL statement) for migration: $migrateName");
+                }
             } else {
+                output()->info("Running migration without transaction: $migrateName");
                 $callback();
             }
+
+            output()->info("Migration executed successfully: $migrateName");
+            return true;
         } catch (\Exception $e) {
-            if ($connection->inTransaction()) {
+            if ($wasInTransaction && $connection->inTransaction()) {
                 $connection->rollBack();
+                output()->warning("Transaction rolled back for migration: $migrateName");
             }
-            output()->error("Migration failed: " . $e->getMessage());
+            output()->error("Migration failed: $migrateName - " . $e->getMessage());
+            output()->error("Error trace: " . $e->getTraceAsString());
             return false;
         }
-        return true;
     }
 
     /**
@@ -668,4 +692,6 @@ class MigrateLogic
     {
         return ucfirst(StringHelper::camel($name));
     }
+
+
 }
